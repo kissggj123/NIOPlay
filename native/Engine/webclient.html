@@ -72,6 +72,7 @@
   #focusbtn{top:10px;right:64px}
   #panelbtn{top:10px;right:118px}
   #fsbtn{top:10px;right:172px}
+  #reloadbtn{top:10px;right:226px}
   #fsbtn.active,#panelbtn.active,#focusbtn.active{background-image:var(--rb);color:#fff;border-color:transparent}
   /* CSS immersive fallback when the Fullscreen API is unavailable/refused */
   body.cssfs #hint{display:none}
@@ -103,6 +104,8 @@
   /* focus mode: hide all chrome */
   body.focus #hud,body.focus #hint,body.focus .cbtn,body.focus #panel,
   body.focus #banner,body.focus #toast{display:none!important}
+  /* focus recovery hint must stay visible during its 2.8s window */
+  body.focus #toast.show{display:flex!important}
   /* settings panel: white glass, 150ms open/close */
   #panel{position:fixed;top:60px;right:10px;z-index:20;width:272px;max-height:80vh;overflow-y:auto;
     -webkit-overflow-scrolling:touch;touch-action:pan-y;
@@ -182,6 +185,9 @@
 </button>
 <button id="fsbtn" class="cbtn" title="全屏">
   <svg viewBox="0 0 24 24"><path d="M3 8V5a2 2 0 0 1 2-2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/></svg>
+</button>
+<button id="reloadbtn" class="cbtn" title="强制刷新（清缓存重载）">
+  <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
 </button>
 <button id="panelbtn" class="cbtn" title="设置">
   <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1507,7 +1513,11 @@
 
   /* ============ focus mode ============ */
   function syncFocusBtn(){
-    focusbtn.classList.toggle('active',document.body.classList.contains('focus'));
+    var on=document.body.classList.contains('focus');
+    focusbtn.classList.toggle('active',on);
+    // Focus hides all chrome including the hint — announce the recovery
+    // gesture once on entry (toast is exempt from focus-hiding while shown).
+    if(on) showToast('控件已隐藏 · 双击画面恢复');
   }
   focusbtn.addEventListener('click',function(e){
     e.stopPropagation();
@@ -1725,13 +1735,24 @@
     paintRange(el);
     el.addEventListener('input',function(){ paintRange(el); });
   });
-  // Double-click on the video toggles focus mode
-  [img,canvas].forEach(function(el){
+  // Double-click on the video toggles focus mode (rv = WebRTC render surface)
+  [img,canvas,rv].forEach(function(el){
     el.addEventListener('dblclick',function(e){
       e.preventDefault();
       document.body.classList.toggle('focus');
       syncFocusBtn();
     });
+  });
+  // Force reload: cache-busting query param — the closest thing to
+  // Ctrl+Shift+R a touch UI gets. replace() avoids a history entry.
+  var reloadbtn=document.getElementById('reloadbtn');
+  reloadbtn.addEventListener('click',function(e){
+    e.stopPropagation();
+    try{
+      var u=new URL(location.href);
+      u.searchParams.set('r',String(Date.now()));
+      location.replace(u.toString());
+    }catch(err){ location.reload(); }
   });
   // Hint fades away after 6s
   setTimeout(function(){ hint.classList.add('fade'); },6000);
