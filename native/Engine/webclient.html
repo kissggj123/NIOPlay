@@ -66,12 +66,15 @@
   #focusbtn{top:10px;right:64px}
   #panelbtn{top:10px;right:118px}
   #fsbtn{top:10px;right:172px}
-  #fsbtn.active,#panelbtn.active{background-image:var(--rb);color:#fff;border-color:transparent}
+  #fsbtn.active,#panelbtn.active,#focusbtn.active{background-image:var(--rb);color:#fff;border-color:transparent}
   /* CSS immersive fallback when the Fullscreen API is unavailable/refused */
   body.cssfs #hint{display:none}
   #mutebtn .ic-muted{display:none}
   #mutebtn.muted .ic-on{display:none}
   #mutebtn.muted .ic-muted{display:inline}
+  #focusbtn .ic-off{display:none}
+  #focusbtn.active .ic-on{display:none}
+  #focusbtn.active .ic-off{display:inline}
   /* disconnect banner (below panel z-index, top-center) */
   #banner{position:fixed;top:12px;left:50%;z-index:15;transform:translateX(-50%) translateY(-10px);
     background:#fff3e0;border:1px solid #ffcf99;color:#8a5300;border-radius:999px;
@@ -83,9 +86,17 @@
   #banner .bdot{width:8px;height:8px;border-radius:50%;background:#ff9500;
     animation:pulse 1.2s ease-in-out infinite}
   @keyframes pulse{50%{opacity:.35}}
+  /* result toast (same pill family as banner, green = success) */
+  #toast{position:fixed;top:12px;left:50%;z-index:15;transform:translateX(-50%) translateY(-10px);
+    background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;border-radius:999px;
+    font-family:-apple-system,sans-serif;font-size:13px;padding:8px 16px;
+    opacity:0;pointer-events:none;max-width:80vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    box-shadow:0 4px 16px rgba(76,175,80,.25);
+    transition:opacity .3s ease,transform .3s ease}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   /* focus mode: hide all chrome */
   body.focus #hud,body.focus #hint,body.focus .cbtn,body.focus #panel,
-  body.focus #banner{display:none!important}
+  body.focus #banner,body.focus #toast{display:none!important}
   /* settings panel: white glass, 150ms open/close */
   #panel{position:fixed;top:60px;right:10px;z-index:20;width:272px;max-height:80vh;overflow-y:auto;
     -webkit-overflow-scrolling:touch;touch-action:pan-y;
@@ -153,13 +164,15 @@
 <video id="rv" autoplay playsinline muted></video>
 <div id="hud"></div>
 <div id="banner"><span class="bdot"></span><span id="btxt">连接已断开 · 重连中</span></div>
+<div id="toast"><span id="ttxt"></span></div>
 <div id="hint">触摸屏幕操作 CarPlay · 双击呼出/隐藏控制</div>
 <button id="mutebtn" class="cbtn" title="静音/取消静音">
   <svg class="ic-on" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 6a9 9 0 0 1 0 12"/></svg>
   <svg class="ic-muted" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 9l6 6"/><path d="M22 9l-6 6"/></svg>
 </button>
 <button id="focusbtn" class="cbtn" title="专注模式">
-  <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+  <svg class="ic-on" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+  <svg class="ic-off" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
 </button>
 <button id="fsbtn" class="cbtn" title="全屏">
   <svg viewBox="0 0 24 24"><path d="M3 8V5a2 2 0 0 1 2-2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/></svg>
@@ -247,9 +260,21 @@
       panelbtn=document.getElementById('panelbtn'),
       panel=document.getElementById('panel'),
       banner=document.getElementById('banner'),
+      toast=document.getElementById('toast'),
+      ttxt=document.getElementById('ttxt'),
       ws=null, wsReady=false,
       active=new Map(),
-      imgShown=false, muted=false;
+      imgShown=false, muted=false,
+      toastTimer=null;
+
+  /* transient toast (pill style, same family as #banner) */
+  function showToast(msg){
+    if(!toast) return;
+    ttxt.textContent=msg;
+    toast.classList.add('show');
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){ toast.classList.remove('show'); },2800);
+  }
 
   /* ============ video (WebCodecs H.264 passthrough) ============ */
   var useWebCodecs = window.isSecureContext && ('VideoDecoder' in window);
@@ -1304,9 +1329,9 @@
           return;
         }
         if(m&&m.t==='displayProbe'){ probeAnswered=!!m.switchable; return; }
-        if(m&&m.t==='displayResult'){ alert(m.applied
-          ?('显示设置已应用 ('+m.width+'×'+m.height+')，CarPlay 会话将重启协商')
-          :('新分辨率 '+m.width+'×'+m.height+' 已保存。当前为有线连接，不在线切换；请重新启动接收后生效')); return; } }catch(e){}
+        if(m&&m.t==='displayResult'){ showToast(m.applied
+          ?('显示设置已应用 ('+m.width+'×'+m.height+')，会话将重启协商')
+          :('新分辨率 '+m.width+'×'+m.height+' 已保存，重启接收后生效')); return; } }catch(e){}
     };
   }
   connect();
@@ -1475,9 +1500,13 @@
   window.addEventListener('resize',function(){ rectCache.rect=null; syncViewportSize(); maybeRefit(); });
 
   /* ============ focus mode ============ */
+  function syncFocusBtn(){
+    focusbtn.classList.toggle('active',document.body.classList.contains('focus'));
+  }
   focusbtn.addEventListener('click',function(e){
     e.stopPropagation();
     document.body.classList.toggle('focus');
+    syncFocusBtn();
   });
 
   /* ============ fullscreen ============ */
@@ -1489,9 +1518,22 @@
   function fsActive(){
     return !!(document.fullscreenElement||document.webkitFullscreenElement||document.webkitCurrentFullScreenElement);
   }
+  // Fork: fullscreen auto-enters focus mode (hide chrome); only lift it on
+  // exit if focus was auto-added here — user-chosen focus survives, and
+  // toggles made during fullscreen are respected.
+  var fsForcedFocus=false;
+  function setFocusForFullscreen(on){
+    if(on&&!fsForcedFocus&&!document.body.classList.contains('focus')){
+      fsForcedFocus=true; document.body.classList.add('focus');
+    } else if(!on&&fsForcedFocus){
+      fsForcedFocus=false; document.body.classList.remove('focus');
+    } else return;
+    syncFocusBtn();
+  }
   function cssFs(on){
     document.body.classList.toggle('cssfs',on);
     fsbtn.classList.toggle('active',on||fsActive());
+    setFocusForFullscreen(on||fsActive());
   }
   fsbtn.addEventListener('click',function(e){
     e.stopPropagation();
@@ -1519,6 +1561,7 @@
   ['fullscreenchange','webkitfullscreenchange'].forEach(function(ev){
     document.addEventListener(ev,function(){
       fsbtn.classList.toggle('active',fsActive());
+      setFocusForFullscreen(fsActive());
       // Fork: car WebViews may switch window mode without firing resize —
       // re-pin the media box in px and re-fit if the window grew a lot.
       syncViewportSize();
@@ -1681,6 +1724,7 @@
     el.addEventListener('dblclick',function(e){
       e.preventDefault();
       document.body.classList.toggle('focus');
+      syncFocusBtn();
     });
   });
   // Hint fades away after 6s
