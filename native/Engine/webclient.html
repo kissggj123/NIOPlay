@@ -53,6 +53,9 @@
     color:var(--txt);border:1px solid var(--line);border-radius:10px;
     font-family:ui-monospace,Menlo,monospace;font-size:11px;padding:7px 10px;line-height:1.5;
     display:none;pointer-events:none;white-space:pre;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+  /* setHud() flips display:block at page load before stats exist — never
+     render the empty pill (needs !important to beat the inline style) */
+  #hud:empty{display:none!important}
   /* hint bar */
   #hint{position:fixed;left:0;right:0;bottom:0;text-align:center;color:rgba(255,255,255,.5);
     font-family:-apple-system,sans-serif;font-size:12px;padding:12px;pointer-events:none;
